@@ -44,9 +44,25 @@ class TreatyConditions(Enum):
 
 ## UNFINISHED
 # Put this in Generic Utils class
-def GetCurrentGameDateString() -> str:
-    # Get data from table
-    return "01/01/1950"
+def GetCurrentGameDateString(cursor: sqlite3.Cursor) -> str:
+    cursor.execute("""
+        SELECT value
+        FROM config
+        WHERE key == 'current_year'
+    """)
+    currentYear = cursor.fetchone()
+    currentYear = str(currentYear[0])
+
+    cursor.execute("""
+        SELECT value
+        FROM config
+        WHERE key == 'current_year'
+    """)
+    currentMonth = cursor.fetchone()
+    currentMonth = str(currentMonth[0])
+    if len(currentMonth) < 2: currentMonth = '0' + currentMonth
+
+    return f"01/{currentMonth}/{currentYear}"
 
 # Put this in Generic Utils class
 def GetDateValue(dateStr: str) -> datetime.date:
@@ -89,7 +105,7 @@ def EnterTreatyIntoForce(cursor: sqlite3.Cursor, treatyID: int) -> None:
     if treatyArgs is None: raise ValueError(f"treaty_args column for treaty with ID {treatyID} is null")
     treatyArgs = json.loads(treatyArgs)
     
-    treatyArgs["inForceDate"] = GetCurrentGameDateString()
+    treatyArgs["inForceDate"] = GetCurrentGameDateString(cursor)
 
     treatyArgs = json.dumps(treatyArgs)
 
@@ -172,7 +188,7 @@ def CheckAutoCondition(cursor: sqlite3.Cursor, treatyID: int, condEnum: TreatyCo
                 isCondTrue = False
             else:
                 inForceDate = GetDateValue(treatyArgs["inForceDate"])
-                currentDate = GetDateValue(GetCurrentGameDateString())
+                currentDate = GetDateValue(GetCurrentGameDateString(cursor))
                 yearDiff = relativedelta(currentDate, inForceDate).years
 
                 yearNo = condArgs["yearNo"]
@@ -182,7 +198,7 @@ def CheckAutoCondition(cursor: sqlite3.Cursor, treatyID: int, condEnum: TreatyCo
                     isCondTrue = False
         case TreatyConditions.BEFORE_TIME_EIF:
             inForceDate = GetDateValue(treatyArgs["inForceDate"])
-            currentDate = GetDateValue(GetCurrentGameDateString())
+            currentDate = GetDateValue(GetCurrentGameDateString(cursor))
             yearDiff = relativedelta(currentDate - inForceDate).years
 
             yearNo = condArgs["yearNo"]
@@ -192,7 +208,7 @@ def CheckAutoCondition(cursor: sqlite3.Cursor, treatyID: int, condEnum: TreatyCo
                 isCondTrue = True
         case TreatyConditions.AFTER_DATE:
             afterDate = GetDateValue(condArgs["afterDate"])
-            currentDate = GetDateValue(GetCurrentGameDateString())
+            currentDate = GetDateValue(GetCurrentGameDateString(cursor))
 
             if currentDate > afterDate:
                 isCondTrue = True
@@ -200,7 +216,7 @@ def CheckAutoCondition(cursor: sqlite3.Cursor, treatyID: int, condEnum: TreatyCo
                 isCondTrue = False
         case TreatyConditions.BEFORE_DATE:
             beforeDate = GetDateValue(condArgs["beforeDate"])
-            currentDate = GetDateValue(GetCurrentGameDateString())
+            currentDate = GetDateValue(GetCurrentGameDateString(cursor))
 
             if currentDate < beforeDate:
                 isCondTrue = True
@@ -1792,7 +1808,7 @@ def AddSignatoryToDB(cursor: sqlite3.Cursor, treatyID: int, countryID: int) -> N
     if treatyInfoList is None: raise ValueError(f"signed_treaties column for country with ID {countryID} is null")
     treatyInfoList = json.loads(treatyInfoList)
     
-    treatyInfoList.append({"treatyID": treatyID, "dateSigned": GetCurrentGameDateString()})
+    treatyInfoList.append({"treatyID": treatyID, "dateSigned": GetCurrentGameDateString(cursor)})
 
     treatyInfoList = json.dumps(treatyInfoList)
 
