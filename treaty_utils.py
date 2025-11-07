@@ -25,7 +25,6 @@ class TreatyClauses(Enum):
     ##Economic
     PAY_MONEY = 21 # [Country] will pay [Country] [Money] (every [Int] year(s))
     EMBARGO = 22 # [Country List] will place an embargo on [Country List - non-signatories]
-    RESOURCE_ACCESS = 23 # [Country] will grant exclusive rights to exploit [Resource Node List] to [Country]
 
 class TreatyConditions(Enum):
     # Treaty conditions, comments use [] for input fields
@@ -233,14 +232,32 @@ def CheckAutoCondition(cursor: sqlite3.Cursor, treatyID: int, condEnum: TreatyCo
         case TreatyConditions.AT_WAR_WITH:
             raise NotImplementedError("Treaty Clause AT_WAR_WITH not implemented in CheckAutoCondition()")
         case TreatyConditions.OTHER_TREATY_MEMBER:
-            raise NotImplementedError("Treaty Clause OTHER_TREATY_MEMBER not implemented in CheckAutoCondition()")
+            isNegative = condArgs["isNegative"]
+            otherTreatyID = condArgs["otherTreatyID"]
+
+            cursor.execute("""
+                SELECT signed_treaties
+                FROM playernations
+                WHERE nation_id == (?)
+            """, (signatoryID,))
+            signedTreaties = cursor.fetchone()
+            if signedTreaties is None: raise ValueError(f"country with nation_id {signatoryID} does not exist")
+            signedTreaties = signedTreaties[0]
+            if signedTreaties is None: raise ValueError(f"country with nation_id {signatoryID} has null signed_treaties column")
+            signedTreaties = json.loads(signedTreaties)
+
+            isCondTrue = isNegative
+            for treatyInfo in signedTreaties:
+                if treatyInfo["treatyID"] == otherTreatyID:
+                    isCondTrue = not isNegative
         case TreatyConditions.IN_COUNTRY_LIST:
+            isNegative = condArgs["isNegative"]
             possibleCountryIDs = condArgs["possibleCountryIDs"]
-            
+
             if signatoryID in possibleCountryIDs:
-               isCondTrue = True
+               isCondTrue = not isNegative
             else:
-               isCondTrue = False
+               isCondTrue = isNegative
         case _:
             raise ValueError(f"no case is defined for {condEnum} in CheckAutoCondition()")
     
@@ -360,7 +377,6 @@ def GetAllTreatyStrings(cursor: sqlite3.Cursor, treatyID: int) -> dict[str,str]:
 
     return treatyInfo
 
-## UNFINISHED CASES
 def GetClauseString(cursor: sqlite3.Cursor, clauseEnum: TreatyClauses, clauseArgs: dict[str,Any]) -> str:
     class ClauseStringHelper:
         @staticmethod
@@ -549,8 +565,6 @@ def GetClauseString(cursor: sqlite3.Cursor, clauseEnum: TreatyClauses, clauseArg
             embargoedCountryNames = ClauseStringHelper.GetCountryNamesString(cursor, embargoedCountryIDs)
 
             treatyClauseString = f"{embargoingCountryNames} will place an embargo on {embargoedCountryNames}"
-        case TreatyClauses.RESOURCE_ACCESS:
-            raise NotImplementedError("Treaty Clause RESOURCE_ACCESS not implemented in GetTreatyClauseString()")
         case _:
             raise ValueError(f"no case is defined for {clauseEnum} in GetTreatyClauseString()")
     
@@ -844,7 +858,6 @@ def GetClauseLabel(clauseEnum: TreatyClauses) -> str:
         case TreatyClauses.DECLARE_WAR: return "Joint War Declaration"
         case TreatyClauses.PAY_MONEY: return "Pay Money"
         case TreatyClauses.EMBARGO: return "Joint Embargo"
-        case TreatyClauses.RESOURCE_ACCESS: return "Resource Access"
         case _: raise ValueError(f"no case is defined for {clauseEnum} in GetTreatyClauseLabel()")
 
 def GetAutoConditionLabel(condEnum: TreatyConditions) -> str:
@@ -904,7 +917,6 @@ def GetAutoConditionLabels(condType: str, clauseEnum: TreatyClauses | None = Non
             labelDict[condEnum.value] = GetAutoConditionLabel(condEnum)
     return labelDict
 
-## UNFINISHED CASES
 def GetClauseTextInputs(clauseEnum: TreatyClauses) -> dict[str,discord.ui.TextInput]:
     textInputs: dict[str,discord.ui.TextInput] = {}
     match(clauseEnum):
@@ -1028,8 +1040,6 @@ def GetClauseTextInputs(clauseEnum: TreatyClauses) -> dict[str,discord.ui.TextIn
                 style = discord.TextStyle.long,
                 placeholder = "Enter comma-separated country names...",
                 required = True)
-        case TreatyClauses.RESOURCE_ACCESS:
-            raise NotImplementedError("Treaty Clause RESOURCE_ACCESS not implemented in GetTreatyClauseTextInputs()")
         case _:
             raise ValueError(f"no case is defined for {clauseEnum} in GetTreatyClauseTextInputs()")
     return textInputs
@@ -1115,7 +1125,6 @@ def GetAutoConditionTextInputs(condEnum: TreatyConditions) -> dict[str,discord.u
             raise ValueError(f"no case is defined for {condEnum} in GetTreatyConditionTextInputs()")
     return textInputs
 
-## UNFINISHED CASES
 def GetClauseArgs(cursor: sqlite3.Cursor, clauseEnum: TreatyClauses, textInputs: dict[str,discord.ui.TextInput]) -> dict[str,Any]:
     class ClauseArgsHelper:
         @staticmethod
@@ -1354,8 +1363,6 @@ def GetClauseArgs(cursor: sqlite3.Cursor, clauseEnum: TreatyClauses, textInputs:
 
             clauseArgs["embargoingCountryIDs"] = embargoingCountryIDs
             clauseArgs["embargoedCountryIDs"] = embargoedCountryIDs
-        case TreatyClauses.RESOURCE_ACCESS:
-            raise NotImplementedError("Treaty Clause RESOURCE_ACCESS not implemented in GetTreatyClauseArgs()")
         case _:
             raise ValueError(f"no case is defined for {clauseEnum} in GetTreatyClauseArgs()")
     
